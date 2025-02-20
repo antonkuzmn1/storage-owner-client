@@ -1,10 +1,7 @@
 import {Link, useLocation} from "react-router-dom";
 import {
     AccountCircle,
-    AdminPanelSettings,
-    Apartment,
-    Construction,
-    Group,
+    Folder,
     Settings
 } from "@mui/icons-material";
 import {useSelector} from "react-redux";
@@ -23,28 +20,10 @@ const Navbar = () => {
     return (
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 text-black">
             <div className="flex">
-                <Link to="/companies" className={getLinkClass("/companies")}>
+                <Link to="/files" className={getLinkClass("/files")}>
                     <div className="flex items-center justify-center space-x-2">
-                        <Apartment sx={{color: 'black'}}/>
-                        {deviceSize === 'Large' && <span>Companies</span>}
-                    </div>
-                </Link>
-                <Link to="/users" className={getLinkClass("/users")}>
-                    <div className="flex items-center justify-center space-x-2">
-                        <Group sx={{color: 'black'}}/>
-                        {deviceSize === 'Large' && <span>Users</span>}
-                    </div>
-                </Link>
-                <Link to="/admins" className={getLinkClass("/admins")}>
-                    <div className="flex items-center justify-center space-x-2">
-                        <AdminPanelSettings sx={{color: 'black'}}/>
-                        {deviceSize === 'Large' && <span>Admins</span>}
-                    </div>
-                </Link>
-                <Link to="/owners" className={getLinkClass("/owners")}>
-                    <div className="flex items-center justify-center space-x-2">
-                        <Construction sx={{color: 'black'}}/>
-                        {deviceSize === 'Large' && <span>Owners</span>}
+                        <Folder sx={{color: 'black'}}/>
+                        {deviceSize === 'Large' && <span>Files</span>}
                     </div>
                 </Link>
                 <Link to="/config" className={getLinkClass("/config")}>

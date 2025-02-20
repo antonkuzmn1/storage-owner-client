@@ -5,10 +5,10 @@ import Cookies from "js-cookie";
 import axios from "axios";
 import {setAccountAuthorized} from "../../slices/accountSlice.ts";
 import {setAppError, setAppLoading, setAppMessage} from "../../slices/appSlice.ts";
-import {api} from "../../utils/api.ts";
 import {dateToString} from "../../utils/formatDate.ts";
 import Input from "../components/Input.tsx";
 import Dialog from "../components/Dialog.tsx";
+import {apiOauth} from "../../utils/api.ts";
 
 interface Data {
     id: number;
@@ -82,7 +82,7 @@ const PageMe: React.FC = () => {
     const getData = useCallback(async () => {
         dispatch(setAppLoading(true));
         try {
-            const response = await api.get("/owner/profile");
+            const response = await apiOauth.get("/owner/profile");
             localDispatch({type: "SET_DATA", payload: response.data});
         } catch (error: unknown) {
             if (error instanceof Error) {
@@ -120,7 +120,7 @@ const PageMe: React.FC = () => {
 
         dispatch(setAppLoading(true));
         try {
-            const response = await api.put(`/owner/${state.data.id}`, {
+            const response = await apiOauth.put(`/owner/${state.data.id}`, {
                 username: state.data.username,
                 password: state.password.password,
             });

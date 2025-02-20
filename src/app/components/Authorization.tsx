@@ -4,10 +4,10 @@ import {useDispatch} from "react-redux";
 import {setAppError, setAppLoading} from "../../slices/appSlice.ts";
 import Cookies from "js-cookie";
 import {setAccountAuthorized} from "../../slices/accountSlice.ts";
-import {api} from "../../utils/api.ts";
+import {apiOauth, apiStorage} from "../../utils/api.ts";
 
 const loginUser = async (username: string, password: string) => {
-    return api.post('/owner/login', new URLSearchParams({username, password}), {
+    return apiOauth.post('/owner/login', new URLSearchParams({username, password}), {
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
     });
 };
@@ -30,7 +30,8 @@ const Authorization = () => {
             const response = await loginUser(username, password);
             const token = response.data.access_token;
             Cookies.set('token', token, {expires: 1});
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            apiOauth.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            apiStorage.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             dispatch(setAccountAuthorized(true));
         } catch (error: unknown) {
             console.error(error);
@@ -40,7 +41,8 @@ const Authorization = () => {
                 dispatch(setAppError("An unknown error occurred"));
             }
             Cookies.remove('token');
-            delete api.defaults.headers.common['Authorization'];
+            delete apiOauth.defaults.headers.common['Authorization'];
+            delete apiStorage.defaults.headers.common['Authorization'];
             dispatch(setAccountAuthorized(false));
         } finally {
             dispatch(setAppLoading(false));

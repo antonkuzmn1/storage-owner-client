@@ -1,5 +1,5 @@
 import {dateToString} from "../../utils/formatDate.ts";
-import {Add, Delete, Edit, FilterAlt} from "@mui/icons-material";
+import {Add, Delete, Download, Edit, FilterAlt} from "@mui/icons-material";
 
 type TypeField = 'String' | 'Integer' | 'Boolean' | 'Date';
 
@@ -17,6 +17,7 @@ interface TableProps<T> {
     openCreateDialog?: () => void;
     openUpdateDialog?: (item: T) => void;
     openDeleteDialog?: (item: T) => void;
+    download?: (item: T) => void;
 }
 
 
@@ -27,6 +28,7 @@ const Table = <T extends {}>({
                                  openDeleteDialog,
                                  openUpdateDialog,
                                  openCreateDialog,
+                                 download,
                              }: TableProps<T>) => {
     return (
         <div className={'p-4 w-fit mx-auto'}>
@@ -34,10 +36,15 @@ const Table = <T extends {}>({
                 <table className={'sticky top-0'}>
                     <thead>
                     <tr>
-                        {(openFilterDialog || openCreateDialog || openUpdateDialog || openDeleteDialog) && (
+                        {(openFilterDialog || openCreateDialog || openUpdateDialog || openDeleteDialog || download) && (
                             <td
                                 style={{
-                                    minWidth: ((openFilterDialog && openCreateDialog) || (openUpdateDialog && openDeleteDialog)) ? '96px' : '48px',
+                                    minWidth: ((openUpdateDialog && openDeleteDialog && download)
+                                            ? '144px'
+                                            : ((openFilterDialog && openCreateDialog) || (openUpdateDialog && openDeleteDialog) || (openUpdateDialog && download) || (openDeleteDialog && download))
+                                                ? '96px'
+                                                : '48px'
+                                    ),
                                 }}
                                 className="bg-white border border-gray-300"
                             >
@@ -78,10 +85,15 @@ const Table = <T extends {}>({
                     <tbody>
                     {rows.map((item: T, index: number) => (
                         <tr key={index}>
-                            {(openFilterDialog || openCreateDialog || openUpdateDialog || openDeleteDialog) && (
+                            {(openFilterDialog || openCreateDialog || openUpdateDialog || openDeleteDialog || download) && (
                                 <td
                                     style={{
-                                        minWidth: ((openFilterDialog && openCreateDialog) || (openUpdateDialog && openDeleteDialog)) ? '96px' : '48px',
+                                        minWidth: ((openUpdateDialog && openDeleteDialog && download)
+                                                ? '144px'
+                                                : ((openFilterDialog && openCreateDialog) || (openUpdateDialog && openDeleteDialog) || (openUpdateDialog && download) || (openDeleteDialog && download))
+                                                    ? '96px'
+                                                    : '48px'
+                                        ),
                                     }}
                                     className="bg-white border border-gray-300 h-12"
                                 >
@@ -98,6 +110,13 @@ const Table = <T extends {}>({
                                                 onClick={() => openDeleteDialog(item)}
                                                 className={'text-gray-700 hover:bg-gray-300 transition-colors duration-200 h-12 w-full'}
                                                 children={<Delete/>}
+                                            />
+                                        )}
+                                        {download && (
+                                            <button
+                                                onClick={() => download(item)}
+                                                className={'text-gray-700 hover:bg-gray-300 transition-colors duration-200 h-12 w-full'}
+                                                children={<Download/>}
                                             />
                                         )}
                                     </div>

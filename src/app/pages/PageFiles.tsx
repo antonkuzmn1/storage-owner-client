@@ -2,12 +2,26 @@ import React, {ReactNode, useCallback, useEffect, useReducer} from "react";
 import {AppDispatch} from "../../utils/store.ts";
 import {useDispatch} from "react-redux";
 import {setAppError, setAppLoading} from "../../slices/appSlice.ts";
-import {api} from "../../utils/api.ts";
 import Table from "../components/Table.tsx";
 import Dialog from "../components/Dialog.tsx";
+import {apiOauth, apiStorage} from "../../utils/api.ts";
+import {formatFileSize} from "../../utils/formatFileSize.ts";
 import Input from "../components/Input.tsx";
+import {dateToString} from "../../utils/formatDate.ts";
 
 interface Item {
+    uuid: string;
+    name: string;
+    size: number;
+    sizeFormatted: string;
+    user_id: number;
+    userName: string;
+    created_at: string | null;
+    updated_at: string | null;
+    file: File | null;
+}
+
+interface Company {
     id: number;
     username: string;
     description: string;
@@ -15,33 +29,59 @@ interface Item {
     updated_at: string | null;
 }
 
+interface User {
+    id: number;
+    username: string;
+    password: string;
+    surname: string;
+    name: string;
+    middlename: string | null;
+    department: string | null;
+    remote_workplace: string | null;
+    local_workplace: string | null;
+    phone: string | null;
+    cellular: string | null;
+    post: string | null;
+    company_id: number;
+    company: Company;
+    companyName: string;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
 interface State {
     items: Item[];
-    dialog: 'create' | 'update' | 'delete' | null;
+    dialog: 'create' | 'delete' | null;
     currentItem: Item;
+    users: User[];
 }
 
 type Action =
     | { type: 'SET_ITEMS', payload: Item[] }
-    | { type: 'OPEN_DIALOG', payload: { dialog: 'create' | 'update' | 'delete', item?: Item } }
+    | { type: 'OPEN_DIALOG', payload: { dialog: 'create' | 'delete', item?: Item } }
     | { type: 'CLOSE_DIALOG' }
     | { type: 'UPDATE_CURRENT_ITEM', payload: Partial<Item> }
     | { type: 'ADD_ITEM', payload: Item }
-    | { type: 'UPDATE_ITEM', payload: Item }
-    | { type: 'DELETE_ITEM', payload: Item };
+    | { type: 'DELETE_ITEM', payload: Item }
+    | { type: 'SET_USERS', payload: User[] };
 
 const defaultItem: Item = {
-    id: 0,
-    username: '',
-    description: '',
+    uuid: '',
+    name: '',
+    size: 0,
+    sizeFormatted: '',
+    user_id: 0,
+    userName: '',
     created_at: null,
     updated_at: null,
+    file: null,
 }
 
 const initialState: State = {
     items: [],
     dialog: null,
     currentItem: defaultItem,
+    users: [],
 }
 
 const reducer = (state: State, action: Action): State => {
@@ -74,17 +114,16 @@ const reducer = (state: State, action: Action): State => {
                 items: [...state.items, action.payload],
                 dialog: null,
             }
-        case 'UPDATE_ITEM':
-            return {
-                ...state,
-                items: state.items.map(item => (item.id === action.payload.id ? action.payload : item)),
-                dialog: null,
-            }
         case 'DELETE_ITEM':
             return {
                 ...state,
-                items: state.items.filter(item => item.id !== action.payload.id),
+                items: state.items.filter(item => item.uuid !== action.payload.uuid),
                 dialog: null,
+            }
+        case 'SET_USERS':
+            return {
+                ...state,
+                users: action.payload,
             }
         default:
             return state;
@@ -101,22 +140,35 @@ interface TableHeaders {
 }
 
 const tableHeaders: TableHeaders[] = [
-    {text: 'ID', field: 'id', width: '50px', type: 'Integer'},
-    {text: 'Username', field: 'username', width: '200px', type: 'String'},
-    {text: 'Description', field: 'description', width: '200px', type: 'String'},
+    {text: 'UUID', field: 'uuid', width: '400px', type: 'String'},
+    {text: 'Name', field: 'name', width: '200px', type: 'String'},
+    {text: 'Size', field: 'sizeFormatted', width: '150px', type: 'String'},
+    {text: 'User', field: 'userName', width: '200px', type: 'String'},
     {text: 'Created at', field: 'created_at', width: '200px', type: 'Date'},
-    {text: 'Updated at', field: 'updated_at', width: '200px', type: 'Date'},
 ]
 
-const PageCompanies: React.FC = () => {
+const PageFiles: React.FC = () => {
     const dispatch: AppDispatch = useDispatch();
     const [state, localDispatch] = useReducer(reducer, initialState);
 
     const getItems = useCallback(async () => {
         dispatch(setAppLoading(true));
         try {
-            const response = await api.get("/companies/");
-            localDispatch({type: "SET_ITEMS", payload: response.data});
+            const usersResponse = await apiOauth.get("/users/");
+            localDispatch({type: "SET_USERS", payload: usersResponse.data});
+
+            const response = await apiStorage.get("/file");
+            const data = response.data.map((item: Item) => {
+                return {
+                    ...item,
+                    sizeFormatted: formatFileSize(item.size),
+                    userName: usersResponse.data.find((user: User) => user.id === item.user_id)?.username,
+                }
+            })
+            data.sort((a: Item, b: Item) => {
+                return new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime()
+            });
+            localDispatch({type: "SET_ITEMS", payload: data});
         } catch (error: unknown) {
             if (error instanceof Error) {
                 dispatch(setAppError(error.message));
@@ -132,7 +184,7 @@ const PageCompanies: React.FC = () => {
         getItems().then();
     }, [getItems]);
 
-    const openDialog = useCallback((dialog: "create" | "update" | "delete", item?: Item) => {
+    const openDialog = useCallback((dialog: "create" | "delete", item?: Item) => {
         localDispatch({type: "OPEN_DIALOG", payload: {dialog, item}});
     }, []);
 
@@ -141,12 +193,23 @@ const PageCompanies: React.FC = () => {
     }, []);
 
     const createItem = useCallback(async () => {
+        if (!state.currentItem.file) {
+            dispatch(setAppError('Select file'));
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", state.currentItem.file);
+        formData.append("user_id", String(state.currentItem.user_id || state.users[0].id));
+
         dispatch(setAppLoading(true));
         try {
-            const response = await api.post("/companies/", {
-                username: state.currentItem.username,
-                description: state.currentItem.description,
+            const response = await apiStorage.post("/file", formData, {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
             });
+            response.data.sizeFormatted = formatFileSize(response.data.size);
             localDispatch({type: "ADD_ITEM", payload: response.data});
         } catch (error: unknown) {
             if (error instanceof Error) {
@@ -159,14 +222,24 @@ const PageCompanies: React.FC = () => {
         }
     }, [state.currentItem, dispatch]);
 
-    const updateItem = useCallback(async () => {
+    const download = useCallback(async (item: Item) => {
         dispatch(setAppLoading(true));
         try {
-            const response = await api.put(`/companies/${state.currentItem.id}`, {
-                username: state.currentItem.username,
-                description: state.currentItem.description,
+            const response = await apiStorage.get(`/file/${item.uuid}`, {
+                responseType: "blob",
             });
-            localDispatch({type: "UPDATE_ITEM", payload: response.data});
+
+            const blob = new Blob([response.data], { type: response.headers["content-type"] });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = item.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            URL.revokeObjectURL(url);
         } catch (error: unknown) {
             if (error instanceof Error) {
                 dispatch(setAppError(error.message));
@@ -181,7 +254,7 @@ const PageCompanies: React.FC = () => {
     const deleteItem = useCallback(async () => {
         dispatch(setAppLoading(true));
         try {
-            await api.delete(`/companies/${state.currentItem.id}`);
+            await apiStorage.delete(`/file/${state.currentItem.uuid}`);
             localDispatch({type: "DELETE_ITEM", payload: state.currentItem});
         } catch (error: unknown) {
             if (error instanceof Error) {
@@ -200,8 +273,8 @@ const PageCompanies: React.FC = () => {
                 tableHeaders={tableHeaders}
                 rows={state.items}
                 openCreateDialog={() => openDialog("create")}
-                openUpdateDialog={(item) => openDialog("update", item)}
                 openDeleteDialog={(item) => openDialog("delete", item)}
+                download={(item) => download(item)}
             />
             {state.dialog === 'create' && (
                 <DialogActions
@@ -209,61 +282,49 @@ const PageCompanies: React.FC = () => {
                     closeDialog={closeDialog}
                     action={createItem}
                     dialogFields={<>
-                        <Input
-                            label={'Username'}
-                            type={'text'}
-                            placeholder={'Enter username'}
-                            value={state.currentItem.username || ''}
-                            onChange={(e) => localDispatch({
-                                type: 'UPDATE_CURRENT_ITEM',
-                                payload: {username: e.target.value}
-                            })}
-                        />
-                        <Input
-                            label={'Description'}
-                            type={'text'}
-                            placeholder={'Enter description'}
-                            value={state.currentItem.description || ''}
-                            onChange={(e) => localDispatch({
-                                type: 'UPDATE_CURRENT_ITEM',
-                                payload: {description: e.target.value}
-                            })}
-                        />
-                    </>}
-                />
-            )}
-            {state.dialog === 'update' && (
-                <DialogActions
-                    type={state.dialog}
-                    closeDialog={closeDialog}
-                    action={updateItem}
-                    dialogFields={<>
-                        <Input
-                            label={'ID'}
-                            type={'number'}
-                            value={state.currentItem.id || ''}
-                            readOnly={true}
-                        />
-                        <Input
-                            label={'Username'}
-                            type={'text'}
-                            placeholder={'Enter username'}
-                            value={state.currentItem.username || ''}
-                            onChange={(e) => localDispatch({
-                                type: 'UPDATE_CURRENT_ITEM',
-                                payload: {username: e.target.value}
-                            })}
-                        />
-                        <Input
-                            label={'Description'}
-                            type={'text'}
-                            placeholder={'Enter description'}
-                            value={state.currentItem.description || ''}
-                            onChange={(e) => localDispatch({
-                                type: 'UPDATE_CURRENT_ITEM',
-                                payload: {description: e.target.value}
-                            })}
-                        />
+                        <div className={'border border-gray-300 h-12 flex'}>
+                            <label
+                                className={'border-r border-gray-300 min-w-36 flex items-center justify-center text-gray-700'}>
+                                File
+                            </label>
+                            <div className="relative w-full">
+                                <input
+                                    type="file"
+                                    id="file-upload"
+                                    className="hidden"
+                                    onChange={(event) => localDispatch({
+                                        type: 'UPDATE_CURRENT_ITEM',
+                                        payload: {file: event.target.files ? event.target.files[0] : null},
+                                    })}
+                                />
+                                <label
+                                    htmlFor="file-upload"
+                                    className="absolute inset-0 flex items-center px-3 cursor-pointer text-gray-700 hover:bg-gray-300 transition-colors duration-200"
+                                >
+                                    {state.currentItem.file
+                                        ? (state.currentItem.file.name + " - " + formatFileSize(state.currentItem.file.size))
+                                        : "Upload file"
+                                    }
+                                </label>
+                            </div>
+                        </div>
+                        <div className={'border border-gray-300 h-12 flex'}>
+                            <label className={'border-r border-gray-300 min-w-36 flex items-center justify-center text-gray-700'}>
+                                User
+                            </label>
+                            <select
+                                value={state.currentItem.user_id}
+                                className={'p-2 w-full text-gray-700'}
+                                onChange={(e) => localDispatch({
+                                    type: 'UPDATE_CURRENT_ITEM',
+                                    payload: {user_id: Number(e.target.value)}
+                                })}
+                            >
+                                {state.users.map(user => (
+                                    <option key={user.id} value={user.id}>{user.username}</option>
+                                ))}
+                            </select>
+                        </div>
                     </>}
                 />
             )}
@@ -274,22 +335,33 @@ const PageCompanies: React.FC = () => {
                     action={deleteItem}
                     dialogFields={<>
                         <Input
-                            label={'ID'}
-                            type={'number'}
-                            value={state.currentItem.id || ''}
+                            label={'UUID'}
+                            type={'text'}
+                            value={state.currentItem.uuid || ''}
                             readOnly={true}
                         />
                         <Input
-                            label={'Username'}
+                            label={'Name'}
                             type={'text'}
-                            value={state.currentItem.username || ''}
+                            value={state.currentItem.name || ''}
                             readOnly={true}
                         />
                         <Input
-                            label={'Description'}
+                            label={'Size'}
                             type={'text'}
-                            placeholder={'Enter description'}
-                            value={state.currentItem.description || ''}
+                            value={state.currentItem.sizeFormatted || ''}
+                            readOnly={true}
+                        />
+                        <Input
+                            label={'User'}
+                            type={'text'}
+                            value={state.currentItem.userName || ''}
+                            readOnly={true}
+                        />
+                        <Input
+                            label={'Created at'}
+                            type={'text'}
+                            value={dateToString(new Date(String(state.currentItem.created_at))) || ''}
                             readOnly={true}
                         />
                     </>}
@@ -299,10 +371,10 @@ const PageCompanies: React.FC = () => {
     )
 }
 
-export default PageCompanies;
+export default PageFiles;
 
 interface DialogActionsProps {
-    type: 'create' | 'update' | 'delete'
+    type: 'create' | 'delete'
     closeDialog: () => void;
     action: () => void;
     dialogFields?: ReactNode;
@@ -318,18 +390,6 @@ const DialogActions: React.FC<DialogActionsProps> = ({type, closeDialog, action,
                     buttons={[
                         {text: "Cancel", onClick: closeDialog},
                         {text: "Create", onClick: action},
-                    ]}
-                    children={dialogFields}
-                />
-            );
-        case "update":
-            return (
-                <Dialog
-                    close={closeDialog}
-                    title={"Update item"}
-                    buttons={[
-                        {text: "Cancel", onClick: closeDialog},
-                        {text: "Update", onClick: action},
                     ]}
                     children={dialogFields}
                 />
