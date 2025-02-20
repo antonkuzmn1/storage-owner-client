@@ -210,6 +210,7 @@ const PageFiles: React.FC = () => {
                 },
             });
             response.data.sizeFormatted = formatFileSize(response.data.size);
+            response.data.userName = state.users.find((user: User) => user.id === response.data.user_id)?.username;
             localDispatch({type: "ADD_ITEM", payload: response.data});
         } catch (error: unknown) {
             if (error instanceof Error) {
